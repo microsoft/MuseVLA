@@ -1,0 +1,14 @@
+{
+  "acoustic_array": {
+    "silence": {
+      "silent": 2.82e-05,
+      "quiet": 4.47e-05,
+      "hushed": 8.51e-07
+    },
+    "ringing": {
+      "loud": 2.5e-05,
+      "noisy": 4.68e-06,
+      "ringing": 3.8e-05
+    }
+  }
+}

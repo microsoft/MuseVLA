@@ -1,0 +1,36 @@
+{
+  "infrared_thermal": {
+    "cold": {
+      "freezing": 1.12e-05,
+      "icy": 3.47e-06,
+      "frosty": 1.58e-06,
+      "subzero": 2.19e-07,
+      "frozen": 2.09e-05,
+      "frostbitten": 8.32e-08,
+      "cold": 0.000105,
+      "chilly": 3.16e-06,
+      "chill": 1.51e-05,
+      "brisk": 1.58e-06,
+      "nippy": 2.4e-07
+    },
+    "room_temperature": {
+      "cool": 2.82e-05,
+      "mild": 1.29e-05,
+      "tepid": 5.13e-07,
+      "lukewarm": 1.23e-06,
+      "ambient": 4.17e-06,
+      "room temperature": 0.000141
+    },
+    "hot": {
+      "warm": 5.13e-05,
+      "toasty": 5.25e-07,
+      "hot": 0.000145,
+      "heated": 1.23e-05,
+      "blazing": 3.02e-06,
+      "scalding": 4.07e-07,
+      "roasting": 2.19e-06,
+      "searing": 8.91e-07,
+      "overheated": 7.76e-07
+    }
+  }
+}

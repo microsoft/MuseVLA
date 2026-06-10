@@ -1,0 +1,12 @@
+# Data directories - calibration input data
+data/
+
+# Output directories - generated results
+output/
+
+# Generated images
+result.png
+# *.png
+
+# Temporary files
+tmp/

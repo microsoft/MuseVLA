@@ -1,0 +1,19 @@
+{
+  "mmwave_radar": {
+    "hidden": {
+      "filled": 5.01e-05,
+      "occupied": 1.8e-04,
+      "stuffed": 9.12e-06,
+      "loaded": 1.78e-05,
+      "hidden": 8.0e-05,
+      "occluded": 3.0e-05,
+      "covered": 6.76e-05
+    },
+    "absense": {
+      "empty": 3.89e-05,
+      "vacant": 6.31e-06,
+      "hollow": 8.91e-06,
+      "void": 1.02e-05
+    }
+  }
+}

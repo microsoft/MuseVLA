@@ -1,0 +1,62 @@
+# PyTorch (CUDA 12.1)
+torch==2.3.0
+torchvision==0.18.0
+torchaudio==2.3.0
+
+# Core ML libraries
+transformers==4.47.1
+diffusers>=0.31.0
+peft==0.11.1
+deepspeed==0.16.5
+accelerate>=1.0.0
+safetensors>=0.4.0
+
+# Vision
+timm==0.9.10
+open-clip-torch==2.20.0
+opencv-python
+scikit-image
+ultralytics
+
+# Data processing
+numpy<2.0
+datasets==2.12.0
+decord
+imageio
+imageio-ffmpeg
+ffmpeg-python
+h5py
+pillow
+
+# Tokenizers & NLP
+tokenizers>=0.21
+sentencepiece==0.1.99
+sentence-transformers==2.2.2
+
+# Config & logging
+PyYAML==6.0.2
+hydra-core>=1.1.1
+hydra-colorlog>=1.2.0
+draccus==0.8.0
+omegaconf>=2.3.0
+wandb>=0.19.0
+tensorboard>=2.13.0
+tensorboardX>=2.6.2
+rich
+tqdm>=4.65.0
+
+# Utilities
+einops
+huggingface_hub
+json-numpy
+jsonlines
+matplotlib
+protobuf
+brotli
+pympler
+
+# 3D utilities
+utils3d @ git+https://github.com/EasternJournalist/utils3d.git@d790d33#egg=utils3d
+
+# Inference server
+flask

@@ -1,0 +1,88 @@
+{
+    "vla_name": "VITRA_Paligemma",
+    "task_name": "VLMpret_0_VLApret_None_0_Finetune_realRobot_50k",
+    "task_mode": "vlm_vla_cofinetune",
+    "model": "vitra_paligemma2",
+    "fwd_pred_next_n": 16,
+    "seed": 42,
+    "batch_size": 16,
+    "total_batch_size": 16,
+    "output_root": "./outputs/vla_checkpoint/vitra_vlm_vla_cofinetune/checkpoints",
+    "log_root": "./outputs/vla_checkpoint/vitra_vlm_vla_cofinetune/logs",
+    "cache_root": "./outputs/vla_checkpoint/vitra_vlm_vla_cofinetune/cache",
+    "pretrain_path": "<LOCAL_PATH>",
+    "model_load_path": null,
+    "resume": false,
+    "wandb_project": "vitra_robot_vlm_vla_cofinetune",
+    "wandb_entity": "<WANDB_ENTITY>",
+    "save_steps": 5000,
+    "epoch_save_interval": 50,
+    "use_bf16": true,
+    "use_fov": false,
+    "untied_cognition_token": true,
+    "use_state": "DiT",
+    "loss_type": "robot",
+    "train_setup": {
+        "freeze_option": "freeze_vision_encoder"
+    },
+    "vlm_vla": {
+        "random_sample_sensor": false,
+        "sensor_masked": true,
+        "RGB_only": false,
+        "background_modes": "grey",
+        "vlm_loss_weight": 1.0,
+        "action_loss_weight": 1.0,
+        "data_mix_sensor": "acoustic,radar,thermal",
+        "jump_frame": 3,
+        "random_drop_RGB": 0.5,
+        "sensor_input_all": false,
+        "use_end_pose": true,
+        "use_delta_pose": true,
+        "max_samples": 100
+    },
+    "state_encoder": {
+        "state_dim": 212
+    },
+    "action_model": {
+        "model_type": "DiT-B",
+        "token_size": 2304,
+        "action_dim": 192,
+        "hidden_size": 1024
+    },
+    "vlm": {
+        "type": "PaliGemmaForConditionalGeneration",
+        "name": "paligemma",
+        "pretrained_model_name_or_path": "google/paligemma2-3b-mix-224"
+    },
+    "trainer": {
+        "sharding_strategy": "shard-grad-op",
+        "strategy": "fsdp_paligemma_with_checkpointing",
+        "lr_scheduler_type": "backbone-freeze-warmup",
+        "gradient_clip_val": 1.0,
+        "learning_rate": 1e-5,
+        "weight_decay": 1e-1,
+        "max_epochs": 100000,
+        "max_steps": 50000,
+        "reduce_in_full_precision": true,
+        "enable_mixed_precision_training": false,
+        "enable_gradient_checkpointing": true,
+        "action_model_learning_rate": 1e-5,
+        "llm_freeze_step": 0,
+        "warmup_ratio": null,
+        "optimizer_betas": [0.9, 0.95]
+    },
+    "train_dataset": {
+        "data_root_dir": "<LOCAL_PATH>",
+        "augmentation": false,
+        "set_none_ratio": 0.0,
+        "data_mix": "real_robot",
+        "num_workers": 16,
+        "prefetch_factor": null,
+        "flip_augmentation": 0.0,
+        "action_type": "angle",
+        "use_rel": false,
+        "clip_len": null,
+        "normalization": true
+    },
+    "repeated_diffusion_steps": 8
+}

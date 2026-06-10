@@ -1,0 +1,15 @@
+{
+"acoustic_array": {
+    "silence_quiet": [
+      "silent",
+      "quiet",
+      "hushed"
+    ],
+    "loud_sounds": [
+      "loud",
+      "noisy",
+      "ringing"
+    ]
+
+  }
+}

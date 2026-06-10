@@ -1,0 +1,78 @@
+{
+    "vla_name": "VITRA_Paligemma",
+    "task_name": "VLM_Finetune",
+    "task_mode": "vlm_finetune",
+    "model": "vitra_paligemma2",
+    "fwd_pred_next_n": 16,
+    "seed": 42,
+    "batch_size": 8,
+    "total_batch_size": 256,
+    "output_root": "./outputs/vla_checkpoint/vitra_vlm_finetune/checkpoints",
+    "log_root": "./outputs/vla_checkpoint/vitra_vlm_finetune/logs",
+    "cache_root": "./outputs/vla_checkpoint/vitra_vlm_finetune/cache",
+    "pretrain_path": "<CHECKPOINT_PATH>",
+    "model_load_path": null,
+    "resume": false,
+    "wandb_project": "vitra_paligemma2_vlm_finetune",
+    "wandb_entity": "<WANDB_ENTITY>",
+    "save_steps": 1000,
+    "epoch_save_interval": 50,
+    "use_bf16": true,
+    "use_fov": false,
+    "untied_cognition_token": false,
+    "use_state": "DiT",
+    "loss_type": "robot",
+    "train_setup": {
+        "freeze_option": "freeze_vision_encoder"
+    },
+    "vlm_finetune": {
+        "sensor_token_prob": {
+            "none": 0.25,
+            "thermal": 0.25,
+            "radar": 0.25,
+            "audio": 0.25
+        },
+        "placeholder_replacements_path": "./data/word_dict",
+        "placeholder_text": "<placeholder>",
+        "video_sample_frame_number": 10,
+        "repeat_sensor_token_num": 1,
+        "train_seg_token": true
+    },
+    "state_encoder": {
+        "state_dim": 212
+    },
+    "action_model": {
+        "model_type": "DiT-B",
+        "token_size": 2304,
+        "action_dim": 192,
+        "hidden_size": 1024
+    },
+    "vlm": {
+        "type": "PaliGemmaForConditionalGeneration",
+        "name": "paligemma",
+        "pretrained_model_name_or_path": "google/paligemma2-3b-mix-224"
+    },
+    "trainer": {
+        "sharding_strategy": "shard-grad-op",
+        "strategy": "fsdp_paligemma_with_checkpointing",
+        "lr_scheduler_type": "constant",
+        "gradient_clip_val": 1.0,
+        "learning_rate": 1e-5,
+        "weight_decay": 1e-1,
+        "max_epochs": 100000,
+        "max_steps": 20000,
+        "reduce_in_full_precision": true,
+        "enable_mixed_precision_training": true,
+        "enable_gradient_checkpointing": true,
+        "warmup_ratio": null,
+        "optimizer_betas": [0.9, 0.95]
+    },
+    "train_dataset": {
+        "data_root_dir": "<DATA_ROOT>",
+        "augmentation": true,
+        "flip_augmentation": 1.0,
+        "data_mix": "vitra,molmoact_household,molmoact_tabletop,interna1,agibot",
+        "num_workers": 16,
+        "prefetch_factor": null
+    }
+}

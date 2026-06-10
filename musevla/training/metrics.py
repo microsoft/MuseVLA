@@ -1,0 +1,395 @@
+"""
+metrics.py
+
+Utility classes defining a Metrics container and multiple Trackers to enable model/stage-specific logging to various
+endpoints (e.g., JSONL local logs, Weights & Biases).
+"""
+
+import time
+from collections import defaultdict, deque
+from pathlib import Path
+from typing import Any, Dict, Optional, Protocol, Tuple, Union
+
+import jsonlines
+import numpy as np
+import torch
+import wandb
+
+from musevla.utils.overwatch import initialize_overwatch
+
+# Initialize Overwatch =>> Wraps `logging.Logger`
+overwatch = initialize_overwatch(__name__)
+
+
+# === Define Tracker Interface ===
+class Tracker(Protocol):
+    def write_hyperparameters(self) -> None: ...
+
+    def write(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None: ...
+
+    def finalize(self) -> None: ...
+
+
+# === Individual Tracker Definitions ===
+class JSONLinesTracker:
+    def __init__(self, run_id: str, run_dir: Path, hparams: Dict[str, Any]) -> None:
+        self.run_id, self.run_dir, self.hparams = run_id, run_dir, hparams
+
+    @overwatch.rank_zero_only
+    def write_hyperparameters(self) -> None:
+        with jsonlines.open(self.run_dir / "run-metrics.jsonl", mode="w", sort_keys=True) as js_tracker:
+            js_tracker.write({"run_id": self.run_id, "hparams": self.hparams})
+
+    @overwatch.rank_zero_only
+    def write(self, _: int, metrics: Dict[str, Union[int, float]]) -> None:
+        with jsonlines.open(self.run_dir / f"{self.run_id}.jsonl", mode="a", sort_keys=True) as js_tracker:
+            js_tracker.write(metrics)
+
+    def finalize(self) -> None:
+        return
+
+
+class WeightsBiasesTracker:
+    def __init__(
+        self,
+        run_id: str,
+        run_dir: Path,
+        hparams: Dict[str, Any],
+        project: str = "prismatic",
+        entity: Optional[str] = None,
+        group: str = "align",
+    ) -> None:
+        self.run_id, self.run_dir, self.hparams = run_id, run_dir, hparams
+
+        # Get W&B-Specific Initialization Parameters
+        self.project, self.entity, self.group, self.wandb_dir = project, entity, group, self.run_dir
+
+        # Call W&B.init()
+        self.initialize()
+
+    @overwatch.rank_zero_only
+    def initialize(self) -> None:
+        try:
+            wandb.init(
+                name=self.run_id,
+                dir=self.wandb_dir,
+                config=self.hparams,
+                project=self.project,
+                entity=self.entity,
+                group=self.group,
+            )
+            self._initialized = True
+        except Exception as e:
+            overwatch.warning(f"W&B init failed: {e}. Continuing without W&B logging.")
+            self._initialized = False
+
+    @overwatch.rank_zero_only
+    def write_hyperparameters(self) -> None:
+        if not getattr(self, '_initialized', False):
+            return
+        wandb.config = self.hparams
+
+    @overwatch.rank_zero_only
+    def write(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
+        if not getattr(self, '_initialized', False):
+            return
+        wandb.log(metrics, step=global_step)
+
+    @staticmethod
+    def finalize() -> None:
+        if overwatch.is_rank_zero():
+            try:
+                wandb.finish()
+            except Exception:
+                pass
+
+        # A job gets 210 seconds to get its affairs in order
+        time.sleep(210)
+
+
+# === Core Metrics Container :: Initializes Trackers => Compiles/Pushes Metrics ===
+
+
+class Metrics:
+    def __init__(
+        self,
+        active_trackers: Tuple[str, ...],
+        run_id: str,
+        run_dir: Path,
+        hparams: Dict[str, Any],
+        stage: str,
+        wandb_project: str = "prismatic",
+        wandb_entity: Optional[str] = None,
+        grad_accumulation_steps: int = 1,
+        window_size: int = 128,
+    ) -> None:
+        self.run_id, self.run_dir, self.hparams, self.stage = run_id, run_dir, hparams, stage
+        self.task_mode = hparams.get("task_mode", "vla")
+
+        # Initialize Trackers
+        self.trackers = []
+        for tracker_type in active_trackers:
+            if tracker_type == "jsonl":
+                tracker = JSONLinesTracker(run_id, run_dir, hparams)
+            elif tracker_type == "wandb":
+                tracker = WeightsBiasesTracker(
+                    run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group=self.stage
+                )
+            else:
+                raise ValueError(f"Tracker with type `{tracker_type} is not supported!")
+
+            # Add Hyperparameters --> add to `self.trackers`
+            tracker.write_hyperparameters()
+            self.trackers.append(tracker)
+
+        # Create Universal Metrics Buffers
+        self.global_step, self.start_time, self.step_start_time = 0, time.time(), time.time()
+        self.state = {
+            "loss_raw": deque(maxlen=grad_accumulation_steps),
+            "loss": deque(maxlen=window_size),
+            "step_time": deque(maxlen=window_size),
+            "lr": [],
+        }
+
+    def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
+        for tracker in self.trackers:
+            tracker.write(global_step, metrics)
+
+    def get_status(self, loss: Optional[torch.Tensor] = None) -> str:
+        lr = self.state["lr"][-1] if len(self.state["lr"]) > 0 else 0
+        if loss is None:
+            return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f}"
+
+        # Otherwise, embed `loss` in status report!
+        return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
+
+    def commit(
+        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, **kwargs
+    ) -> None:
+        """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
+        if global_step is not None:
+            self.global_step = global_step
+
+        # For all other variables --> only track on rank zero!
+        if not overwatch.is_rank_zero():
+            return
+
+        # Special Positional Arguments
+        if lr is not None:
+            self.state["lr"].append(lr)
+
+        if update_step_time:
+            self.state["step_time"].append(time.time() - self.step_start_time)
+            self.step_start_time = time.time()
+
+        # Generic Keyword Arguments
+        for key, value in kwargs.items():
+            if key == "loss":
+                loss_val = value.detach()
+                self.state["loss_raw"].append(loss_val)
+                self.state["loss"].append(loss_val)
+            else:
+                if key in self.state:
+                    self.state[key].append(value.detach())
+                else:
+                    if isinstance(value, torch.Tensor):
+                        self.other_state[key].append(value.detach())
+                    else:
+                        self.other_state[key].append(value)
+
+    @overwatch.rank_zero_only
+    def push(self) -> str:
+        # Note :: Raw Loss is an Average over Gradient Accumulation Steps --> No Smoothing!
+        loss_raw = torch.stack(list(self.state["loss_raw"])).mean().item()
+        loss = torch.stack(list(self.state["loss"])).mean().item()
+        step_time, lr = np.mean(list(self.state["step_time"])), self.state["lr"][-1]
+        status = self.get_status(loss)
+
+        # Fire to Trackers
+        prefix = self.stage.capitalize()
+        self.log(
+            self.global_step,
+            metrics={
+                f"{prefix}/Step": self.global_step,
+                f"{prefix}/Loss": loss,
+                f"{prefix}/Loss (Raw)": loss_raw,
+                f"{prefix}/Learning Rate": lr,
+                f"{prefix}/Step Time": step_time,
+            },
+        )
+        return status
+
+    def finalize(self) -> str:
+        for tracker in self.trackers:
+            tracker.finalize()
+
+
+class VLAMetrics:
+    def __init__(
+        self,
+        active_trackers: Tuple[str, ...],
+        run_id: str,
+        run_dir: Path,
+        hparams: Dict[str, Any],
+        wandb_project: str = "vitra",
+        wandb_entity: Optional[str] = "microsoft-vitra",
+        grad_accumulation_steps: int = 1,
+        window_size: int = 1,
+        resume_step: Optional[int] = None,
+        resume_epoch: Optional[int] = None,
+    ) -> None:
+        self.run_id, self.run_dir, self.hparams = run_id, run_dir, hparams
+        self.task_mode = hparams.get("task_mode", "vla")
+        if isinstance(run_dir, str):
+            self.run_dir = Path(run_dir)
+
+        # Initialize Trackers
+        self.trackers = []
+        for tracker_type in active_trackers:
+            if tracker_type == "jsonl":
+                tracker = JSONLinesTracker(run_id, run_dir, hparams)
+            elif tracker_type == "wandb":
+                tracker = WeightsBiasesTracker(
+                    run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group="vla-train"
+                )
+            else:
+                raise ValueError(f"Tracker with type `{tracker_type}` is not supported!")
+
+            # Add Hyperparameters --> add to `self.trackers`
+            tracker.write_hyperparameters()
+            self.trackers.append(tracker)
+
+        # Create Universal Metrics Buffers
+        self.global_step = 0 if resume_step is None else resume_step
+        self.epoch = 0 if resume_epoch is None else resume_epoch
+        self.start_time, self.step_start_time = time.time(), time.time()
+        self.state = {
+            "loss_raw": deque(maxlen=grad_accumulation_steps),
+            "loss": deque(maxlen=window_size),
+            "step_time": deque(maxlen=window_size),
+            "lr": [],
+        }
+        self.other_state = defaultdict(lambda: deque(maxlen=window_size))
+
+    def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
+        for tracker in self.trackers:
+            tracker.write(global_step, metrics)
+
+    def get_status(self, loss: Optional[torch.Tensor] = None) -> str:
+        lr = self.state["lr"][-1] if len(self.state["lr"]) > 0 else 0
+        if loss is None:
+            return f"=>> [Epoch {self.epoch:03d}] Global Step {self.global_step:06d} =>> Backbone LR :: {lr:.1e}"
+
+        # Build per-dataset batch count suffix (sum over grad accum window)
+        ds_parts = []
+        for key in sorted(self.other_state.keys()):
+            if key.startswith("batch_"):
+                ds_name = key[6:]  # strip "batch_" prefix
+                vals = list(self.other_state[key])
+                if vals:
+                    total = torch.stack(vals).sum().item()
+                    ds_parts.append(f"{ds_name}:{total:.0f}")
+
+        # VLM and action loss
+        vlm_str = ""
+        act_str = ""
+        if "vlm_loss" in self.other_state and self.other_state["vlm_loss"]:
+            vlm = torch.stack(list(self.other_state["vlm_loss"])).mean().item()
+            vlm_str = f" VLM:{vlm:.4f}"
+        if "action_loss" in self.other_state and self.other_state["action_loss"]:
+            act = torch.stack(list(self.other_state["action_loss"])).mean().item()
+            act_str = f" Act:{act:.4f}"
+
+        ds_suffix = f" [{','.join(ds_parts)}]" if ds_parts else ""
+        return f"=>> [Epoch {self.epoch:03d}] Global Step {self.global_step:06d} =>> Backbone LR :: {lr:.1e} - Loss :: {loss:.8f}{vlm_str}{act_str}{ds_suffix}"
+
+    def commit(
+        self,
+        *,
+        global_step: Optional[int] = None,
+        epoch: Optional[int] = None,
+        lr: Optional[float] = None,
+        update_step_time: bool = False,
+        **kwargs,
+    ) -> None:
+        """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
+        if global_step is not None:
+            self.global_step = global_step
+
+        if epoch is not None:
+            self.epoch = epoch
+
+        # For all other variables --> only track on rank zero!
+        if not overwatch.is_rank_zero():
+            return
+
+        # Special Positional Arguments
+        if lr is not None:
+            self.state["lr"].append(lr)
+
+        if update_step_time:
+            self.state["step_time"].append(time.time() - self.step_start_time)
+            self.step_start_time = time.time()
+
+        # Generic Keyword Arguments
+        for key, value in kwargs.items():
+            if key == "loss":
+                loss_val = value.detach()
+                self.state["loss_raw"].append(loss_val)
+                self.state["loss"].append(loss_val)
+            else:
+                if key in self.state:
+                    # Detach and move to CPU to avoid GPU memory accumulation
+                    if isinstance(value, torch.Tensor):
+                        self.state[key].append(value.detach().cpu())
+                    else:
+                        self.state[key].append(value)
+                else:
+                    if isinstance(value, torch.Tensor):
+                        # Detach and move to CPU to avoid GPU memory accumulation
+                        self.other_state[key].append(value.detach().cpu())
+                    else:
+                        self.other_state[key].append(torch.tensor(value, dtype=torch.float32))
+
+    @overwatch.rank_zero_only
+    def push(self) -> str:
+        # Note :: Raw Loss is an Average over Gradient Accumulation Steps --> No Smoothing!
+        loss_raw = torch.stack(list(self.state["loss_raw"])).mean().item()
+        loss = torch.stack(list(self.state["loss"])).mean().item()
+        step_time = np.mean(list(self.state["step_time"]))
+        lr = self.state["lr"][-1]
+        status = self.get_status(loss)
+        # Additional metrics from other_state
+        additional_metrics = {
+            f"Other/{key}": torch.stack(list(value)).mean().item()
+            for key, value in self.other_state.items()
+        }
+
+        # Log metrics
+        prefix = "VLA Train"
+        metrics_dict = {
+            f"{prefix}/Step": self.global_step,
+            f"{prefix}/Epoch": self.epoch,
+            f"{prefix}/Loss": loss,
+            f"{prefix}/Loss (Raw)": loss_raw,
+            f"{prefix}/Backbone Learning Rate": lr,
+            f"{prefix}/Step Time": step_time,
+            **additional_metrics,
+        }
+        
+        # Only log action model LR for VLA training (not VLM finetuning)
+        if self.task_mode != "vlm_finetune":
+            action_decay_lr = self.other_state.get("action_decay_lr", None)
+            if action_decay_lr is not None:
+                action_model_lr = action_decay_lr[-1]
+                metrics_dict[f"{prefix}/Action Model Learning Rate"] = action_model_lr
+        
+        self.log(
+            self.global_step,
+            metrics=metrics_dict,
+        )
+        return status
+
+    def finalize(self) -> str:
+        for tracker in self.trackers:
+            tracker.finalize()

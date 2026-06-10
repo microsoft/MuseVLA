@@ -1,0 +1,40 @@
+{
+  "infrared_thermal": {
+    "freezing_extreme_cold": [
+      "freezing",
+      "icy",
+      "frosty",
+      "subzero",
+      "frozen",
+      "frostbitten"
+    ],
+    "cold": [
+      "cold",
+      "chilly",
+      "chill",
+      "brisk",
+      "nippy"
+    ],
+    "cool": [
+      "cool",
+      "mild",
+      "tepid",
+      "lukewarm",
+      "ambient",
+      "room temperature"
+    ],
+    "warm": [
+      "warm",
+      "toasty"
+    ],
+    "hot": [
+      "hot",
+      "heated",
+      "blazing",
+      "scalding",
+      "roasting",
+      "searing",
+      "overheated"
+    ]
+  }
+}

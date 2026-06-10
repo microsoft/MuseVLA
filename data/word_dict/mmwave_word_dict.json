@@ -1,0 +1,20 @@
+{
+  "mmwave_radar": {
+    "occupied_presence": [
+      "filled",
+      "occupied",
+      "stuffed",
+      "loaded",
+      "hidden",
+      "behind",
+      "occluded",
+      "covered"
+    ],
+    "empty_absence": [
+      "empty",
+      "vacant",
+      "hollow",
+      "void"
+    ]
+  }
+}
