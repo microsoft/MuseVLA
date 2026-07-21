@@ -19,7 +19,7 @@ numpy==1.24.4
 opencv-python==4.12.0.88
 packaging==25.0
 pathlib2==2.3.7.post1
-pillow==10.4.0
+pillow==12.3.0
 pluggy==1.5.0
 pycparser==2.22
 pyglet==2.1.8
