@@ -3,7 +3,7 @@
 <h3 align="center">An Adaptive Multimodal Sensing Vision-Language-Action Model<br>for Robotic Manipulation</h3>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/XXXX.XXXXX"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv&logoColor=white" alt="arXiv"></a>
+  <a href="https://arxiv.org/abs/2606.17598"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv&logoColor=white" alt="arXiv"></a>
   <a href="LICENSE.txt"><img src="https://img.shields.io/badge/License-MIT-blue" alt="License"></a>
   <a href="https://github.com/MuseVLA/MuseVLA"><img src="https://img.shields.io/badge/GitHub-Code-black?logo=github" alt="GitHub"></a>
   <a href="https://huggingface.co/microsoft/MuseVLA"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow" alt="HuggingFace Model"></a>
@@ -13,6 +13,10 @@
 <p align="center">
   <img src="assets/overview.png" alt="MuseVLA Overview" width="90%">
 </p>
+
+## 🎬 Demo
+
+https://github.com/user-attachments/assets/fde9d97a-c046-4825-bc50-06b99714e7c0
 
 ---
 
@@ -280,6 +284,20 @@ torchrun --nproc_per_node=8 scripts/train.py \
 python scripts/train.py \
     --config musevla/configs/robot_vlm_vla_finetune_dist.json \
     --pretrain_path <PRETRAINED_MODEL_PATH>
+```
+
+## 📝 Citation
+
+```bibtex
+@misc{liu2026musevlaadaptivemultimodalsensing,
+  title={MuseVLA: An Adaptive Multimodal Sensing Vision-Language-Action Model for Robotic Manipulation},
+  author={Xingyuming Liu and Ruichun Ma and Heyu Guo and Qixiu Li and Qingwen Yang and Lin Luo and Shiqi Jiang and Chenren Xu and Jiaolong Yang and Baining Guo},
+  year={2026},
+  eprint={2606.17598},
+  archivePrefix={arXiv},
+  primaryClass={cs.RO},
+  url={https://arxiv.org/abs/2606.17598},
+}
 ```
 
 ## 📄 License
