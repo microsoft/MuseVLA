@@ -1,5 +1,5 @@
 # PyTorch (CUDA 12.1)
-torch==2.3.0
+torch==2.13.0
 torchvision==0.18.0
 torchaudio==2.3.0
 
