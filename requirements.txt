@@ -20,7 +20,7 @@ ultralytics
 
 # Data processing
 numpy<2.0
-datasets==2.12.0
+datasets==5.0.1
 decord
 imageio
 imageio-ffmpeg
